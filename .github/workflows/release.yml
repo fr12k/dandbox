@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+
+permissions:
+  contents: write # for checkout
+  pull-requests: write # for updating pr
+
+jobs:
+  debug-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if secret exists
+        run: |
+          if [ -n "${{ secrets.CONTAINIFYCI_DOCKER_TOKEN }}" ]; then
+            echo "✅ Secret is available in dandbox repo"
+          else
+            echo "❌ Secret is EMPTY in dandbox repo"
+          fi
+  build-and-release:
+    needs: debug-secrets
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: containifyci/.github/.github/workflows/release.yml@fr12k_debug_secrets
+    secrets:
+      CONTAINIFYCI_DOCKER_TOKEN: ${{ secrets.CONTAINIFYCI_DOCKER_TOKEN }}
