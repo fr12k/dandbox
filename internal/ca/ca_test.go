@@ -99,9 +99,6 @@ func TestTLSConfig(t *testing.T) {
 	}
 
 	tlsConfig := mgr.TLSConfig()
-	if tlsConfig == nil {
-		t.Fatal("TLSConfig() returned nil")
-	}
 	if tlsConfig.GetCertificate == nil {
 		t.Error("TLSConfig().GetCertificate is nil")
 	}
@@ -121,9 +118,6 @@ func TestGetCert(t *testing.T) {
 	cert, err := mgr.getCert(hello)
 	if err != nil {
 		t.Fatalf("getCert() error = %v", err)
-	}
-	if cert == nil {
-		t.Fatal("getCert() returned nil cert")
 	}
 	if len(cert.Certificate) == 0 {
 		t.Error("cert has no certificate data")
@@ -200,9 +194,6 @@ func TestGenerateCert(t *testing.T) {
 			cert, err := mgr.generateCert(host)
 			if err != nil {
 				t.Fatalf("generateCert(%q) error = %v", host, err)
-			}
-			if cert == nil {
-				t.Fatalf("generateCert(%q) returned nil", host)
 			}
 			if len(cert.Certificate) == 0 {
 				t.Errorf("cert for %q has no certificate data", host)

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -26,6 +27,8 @@ func main() {
 	policyDir := flag.String("policy-dir", "", "Directory containing policy rules")
 	secretsFile := flag.String("secrets-file", "", "Path to JSON file with initial secrets")
 	sandboxName := flag.String("sandbox", "", "Sandbox name for scoped policy evaluation")
+	maxConns := flag.Int64("max-connections", 0, "Maximum concurrent connections (0 = unlimited)")
+	rawTCPIdleTimeout := flag.Duration("raw-tcp-idle-timeout", 0, "Idle timeout for raw TCP/SOCKS5 tunnels (e.g. 30m, 0 = unlimited)")
 	flag.Parse()
 
 	// CA certificate directory — default to env or well-known path
@@ -92,12 +95,29 @@ func main() {
 
 	// Create the proxy
 	pxy := proxy.NewProxy(certManager, pol, sec, *proxyAddr)
+	pxy.SetSandboxName(*sandboxName)
+
+	// Feature flags
+	pxy.SetSOCKS5Enabled(true)
+	pxy.SetRawTCPEnabled(true)
+
+	// Connection limits
+	if *maxConns > 0 {
+		pxy.SetMaxConnections(*maxConns)
+		log.Printf("  Max connections: %d", *maxConns)
+	}
+
+	// Idle timeout for raw TCP / SOCKS5 tunnels
+	if *rawTCPIdleTimeout > 0 {
+		pxy.SetRawTCPIdleTimeout(*rawTCPIdleTimeout)
+		log.Printf("  Raw TCP idle timeout: %v", *rawTCPIdleTimeout)
+	}
 
 	// Start the proxy (non-blocking, serves in background)
 	if err := pxy.Start(); err != nil {
 		log.Fatalf("Failed to start proxy: %v", err)
 	}
-	log.Printf("Proxy listening on %s", pxy.Addr().String())
+	log.Printf("Proxy listening on %s (HTTP/SOCKS5/RawTCP)", pxy.Addr().String())
 
 	// Start a simple health endpoint on a separate port
 	go startHealthServer(pxy, sec, *sandboxName)
@@ -149,6 +169,28 @@ func startHealthServer(pxy *proxy.Proxy, sec *secrets.SecretManager, sandboxName
 			"status":     "ready",
 			"proxy_addr": addr,
 		})
+	})
+
+	// Metrics endpoint — hand-rolled Prometheus text format
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		m := pxy.Metrics()
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `# HELP proxy_connections_total Total connections by protocol
+# TYPE proxy_connections_total counter
+proxy_connections_total{protocol="http"} %d
+proxy_connections_total{protocol="connect"} %d
+proxy_connections_total{protocol="socks5"} %d
+proxy_connections_total{protocol="rawtcp"} %d
+# HELP proxy_connections_denied_total Total connections denied by policy
+# TYPE proxy_connections_denied_total counter
+proxy_connections_denied_total %d
+# HELP proxy_active_connections Current number of active connections
+# TYPE proxy_active_connections gauge
+proxy_active_connections %d
+`,
+			m.HTTPTotal, m.CONNECTTotal, m.SOCKS5Total, m.RawTCPTotal,
+			m.DeniedTotal, m.ActiveConns)
 	})
 
 	// Policy reload endpoint — accepts new rules via POST JSON body

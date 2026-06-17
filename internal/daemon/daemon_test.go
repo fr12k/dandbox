@@ -61,9 +61,6 @@ func setupTestDaemon(t *testing.T) *Daemon {
 
 func TestNewDaemon(t *testing.T) {
 	d := setupTestDaemon(t)
-	if d == nil {
-		t.Fatal("NewDaemon() returned nil")
-	}
 	if d.sandboxes == nil {
 		t.Error("sandboxes map should be initialized")
 	}

@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /usr/local/bin/proxy-sidecar \
 # Runtime stage— minimal image with CA certs for TLS upstream connections
 FROM alpine:3.23
 
-RUN apk add --no-cache ca-certificates tzdata curl
+RUN apk add --no-cache ca-certificates tzdata curl iptables
 
 COPY --from=builder /usr/local/bin/proxy-sidecar /usr/local/bin/proxy-sidecar
 

@@ -113,18 +113,40 @@ func (m *Manager) CreateContainer(ctx context.Context, image string, args []stri
 	createReq := map[string]interface{}{
 		"Image":      image,
 		"Env":        env,
-		"Entrypoint": args,
+		"Cmd":        args,
 		"HostConfig": map[string]interface{}{
 			"NetworkMode": m.networkName,
 			"ExtraHosts":  []string{"host.docker.internal:host-gateway"},
 			"Privileged":  false,
+			"CapAdd":      []string{"NET_ADMIN", "NET_RAW"},
 		},
 	}
 
+	// Build init script that runs before the user's command.
+	// The script installs the CA certificate (if available) and sets up
+	// iptables REDIRECT rules for transparent TCP interception.
+	initScript := ""
+
+	// CA certificate installation
 	if caContent != "" {
-		createReq["Cmd"] = []string{
-			"/bin/sh", "-c",
-			fmt.Sprintf("mkdir -p /usr/local/share/ca-certificates && echo '%s' > /usr/local/share/ca-certificates/sbx-ca.crt && update-ca-certificates 2>/dev/null || true && exec \"$@\"", caContent),
+		initScript += fmt.Sprintf(
+			"mkdir -p /usr/local/share/ca-certificates && "+
+				"echo '%s' > /usr/local/share/ca-certificates/sbx-ca.crt && "+
+				"update-ca-certificates 2>/dev/null || true; ", caContent)
+	}
+
+	// iptables REDIRECT rules for transparent TCP interception.
+	// These run inside the container's own network namespace and are
+	// automatically destroyed when the container stops.
+	// If iptables is not available, the script continues without error.
+	initScript += `iptables -t nat -A OUTPUT -p tcp --dport 3128 -j ACCEPT 2>/dev/null; ` +
+		`iptables -t nat -A OUTPUT -p tcp -d 127.0.0.0/8 -j ACCEPT 2>/dev/null; ` +
+		`iptables -t nat -A OUTPUT -p tcp ! -d 127.0.0.0/8 -j REDIRECT --to-port 3128 2>/dev/null || true; ` +
+		`exec "$@"`
+
+	if initScript != "" {
+		createReq["Entrypoint"] = []string{
+			"/bin/sh", "-c", initScript,
 		}
 	}
 
