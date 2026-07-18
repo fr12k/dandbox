@@ -39,7 +39,8 @@ func main() {
 	proxy := build.NewGoServiceBuild("proxy-sidecar")
 	proxy.Verbose = false
 	proxy.File = "cmd/proxy-sidecar/main.go"
-	proxy.Image = "proxy-sidecar"
+	// proxy.Image = "proxy-sidecar"
+	proxy.Image = ""
 	proxy.Registry = "containifyci"
 	proxy.Registries = registryAuth()
 	// proxy.ContainerFiles = map[string]*protos2.ContainerFile{
