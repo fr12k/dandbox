@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/containifyci/engine-ci/client v0.30.5
-	github.com/containifyci/engine-ci/protos2 v0.26.4
+	github.com/containifyci/engine-ci/protos2 v0.26.5
 )
 
 require (
